@@ -1,0 +1,911 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model BikeCategory {
+  id    String @id @default(uuid())
+  name  String @unique
+  users User[]
+}
+
+model BikeBrand {
+  id         String     @id @default(uuid())
+  name       String     @unique
+  created_at DateTime   @default(now())
+  updated_at DateTime   @updatedAt
+  userBikes  UserBike[]
+}
+
+model EventCategory {
+  id         String   @id @default(uuid())
+  name       String   @unique
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+}
+
+model TripStyle {
+  id    String @id @default(uuid())
+  name  String @unique
+  users User[]
+}
+
+model RidingCompanion {
+  id    String @id @default(uuid())
+  name  String @unique
+  users User[]
+}
+
+model CurvePreference {
+  id    String @id @default(uuid())
+  name  String @unique
+  icon  String
+  users User[]
+}
+
+model Term {
+  id         String   @id @default(uuid())
+  title      String
+  content    String
+  type       String   @default("lgpd")
+  version    Int      @default(1)
+  created_at DateTime @default(now())
+
+  @@unique([type, version])
+}
+
+model PasswordResetCode {
+  id         String   @id @default(uuid())
+  email      String
+  code       String
+  expires_at DateTime
+  used       Boolean  @default(false)
+  created_at DateTime @default(now())
+
+  @@index([email, code])
+}
+
+model PlaceAutocompleteLog {
+  id            String   @id @default(uuid())
+  user_id       String?
+  input         String
+  google_status String
+  response      Json
+  created_at    DateTime @default(now())
+
+  user User? @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id, created_at])
+  @@index([created_at])
+}
+
+model PlaceDetailsLog {
+  id            String   @id @default(uuid())
+  user_id       String?
+  place_id      String
+  google_status String
+  response      Json
+  created_at    DateTime @default(now())
+
+  user User? @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id, created_at])
+  @@index([place_id, created_at])
+}
+
+model User {
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  password     String
+  username     String    @unique
+  birth_date   DateTime?
+  friends_list String[]
+
+  bike_style        String?
+  frequency         String?
+  bio               String?
+  localization      String?
+  cpf               String?   @unique
+  phone             String?
+  photo             Bytes?
+  avatar_url        String?
+  has_license       Boolean   @default(false)
+  is_active         Boolean   @default(true)
+  is_admin          Boolean   @default(false)
+  is_public_profile Boolean   @default(true)
+  show_email          Boolean   @default(false)
+  show_phone          Boolean   @default(false)
+  is_vip              Boolean   @default(false)
+  vip_until           DateTime?
+  stripe_customer_id  String?   @unique
+  deleted_at          DateTime?
+
+  trip_style_id String?
+  tripStyle     TripStyle? @relation(fields: [trip_style_id], references: [id])
+
+  curve_preference_id String?
+  curvePreference     CurvePreference? @relation(fields: [curve_preference_id], references: [id])
+
+  bikeCategories   BikeCategory[]
+  userBikes        UserBike[]
+  ridingCompanions RidingCompanion[]
+
+  feedPosts              FeedPost[]
+  feedLikes              FeedPostLike[]
+  feedComments           FeedPostComment[]
+  notificationsReceived  Notification[] @relation("NotificationRecipient")
+  notificationsSent      Notification[] @relation("NotificationActor")
+
+  favoriteServices ServiceFavorite[]
+  serviceReviews   ServiceReview[]
+  feedCommentLikes       FeedPostCommentLike[]
+  stories                Story[]                @relation("StoryAuthor")
+  storyViews             StoryView[]            @relation("StoryViewer")
+  storyLikes             StoryLike[]            @relation("StoryLiker")
+  chatConversationsAsA   ChatConversation[]     @relation("ChatConversationUserA")
+  chatConversationsAsB   ChatConversation[]     @relation("ChatConversationUserB")
+  chatMessages           ChatMessage[]          @relation("ChatMessageSender")
+  chatMessageReactions   ChatMessageReaction[]
+  followRequestsSent     FollowRequest[]        @relation("FollowRequestRequester")
+  followRequestsReceived FollowRequest[]        @relation("FollowRequestTarget")
+  placeAutocompleteLogs  PlaceAutocompleteLog[]
+  placeDetailsLogs       PlaceDetailsLog[]
+  eventRouteLogs         EventRouteLog[]
+  eventsCreated          Event[]                @relation("EventCreator")
+  eventFavorites         EventFavorite[]
+  eventParticipations    EventParticipant[]
+  pushTokens             PushToken[]
+  quickRidesHosted       QuickRide[]            @relation("QuickRideHost")
+  quickRideParticipants  QuickRideParticipant[]
+  routesCreated          Route[]                @relation("RouteCreator")
+  routeInvitationsSent   RouteInvitation[]      @relation("RouteInvitedBy")
+  routeInvitationsReceived RouteInvitation[]    @relation("RouteInvitedUser")
+  routeParticipations    RouteParticipant[]
+  routeNavigatorLocations RouteNavigatorLocation[]
+  routePhotos            RoutePhoto[]
+  routeReviews           RouteReview[]
+  subscriptions          Subscription[]
+
+  @@index([curve_preference_id])
+  @@index([is_vip, vip_until])
+}
+
+model StripeConfig {
+  id               String   @id @default(uuid())
+  api_key          String
+  publishable_key  String
+  webhook_secret   String
+  monthly_price_id String
+  annual_price_id  String
+  monthly_amount   Decimal  @db.Decimal(10, 2)
+  annual_amount    Decimal  @db.Decimal(10, 2)
+  currency         String   @default("brl")
+  success_url      String
+  cancel_url       String
+  is_active        Boolean  @default(true)
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  @@index([is_active])
+}
+
+model Subscription {
+  id                     String    @id @default(uuid())
+  user_id                String
+  stripe_subscription_id String    @unique
+  stripe_customer_id     String
+  stripe_price_id        String
+  plan                   String
+  status                 String
+  current_period_end     DateTime?
+  cancel_at_period_end   Boolean   @default(false)
+  created_at             DateTime  @default(now())
+  updated_at             DateTime  @updatedAt
+
+  user     User                  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  payments SubscriptionPayment[]
+
+  @@index([user_id])
+  @@index([user_id, status])
+  @@index([stripe_customer_id])
+}
+
+model SubscriptionPayment {
+  id                 String    @id @default(uuid())
+  subscription_id    String
+  stripe_invoice_id  String    @unique
+  status             String
+  amount             Decimal   @db.Decimal(10, 2)
+  currency           String    @default("brl")
+  paid_at            DateTime?
+  hosted_invoice_url String?
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+
+  subscription Subscription @relation(fields: [subscription_id], references: [id], onDelete: Cascade)
+
+  @@index([subscription_id, created_at])
+  @@index([status])
+}
+
+model StripeWebhookLog {
+  id              String    @id @default(uuid())
+  stripe_event_id String    @unique
+  type            String
+  payload         Json
+  processed       Boolean   @default(false)
+  processed_at    DateTime?
+  error           String?
+  created_at      DateTime  @default(now())
+
+  @@index([type, created_at])
+  @@index([processed, created_at])
+}
+
+model FollowRequest {
+  id           String   @id @default(uuid())
+  requester_id String
+  target_id    String
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  requester User @relation("FollowRequestRequester", fields: [requester_id], references: [id], onDelete: Cascade)
+  target    User @relation("FollowRequestTarget", fields: [target_id], references: [id], onDelete: Cascade)
+
+  @@unique([requester_id, target_id])
+  @@index([target_id, created_at])
+  @@index([requester_id, created_at])
+}
+
+model UserBike {
+  id                String   @id @default(uuid())
+  user_id           String
+  brand_id          String
+  model             String
+  year              Int
+  base_consumption  Float
+  tank_capacity     Float
+  is_main_bike      Boolean  @default(false)
+  image_url         String?
+  image_storage_key String?
+  category          String?
+  color             String?
+  license_plate     String?
+  mileage           Int?
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  user  User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  brand BikeBrand @relation(fields: [brand_id], references: [id])
+  routes Route[]
+
+  @@index([user_id, created_at])
+  @@index([brand_id])
+}
+
+model Event {
+  id                     String   @id @default(uuid())
+  created_by_id          String
+  category               String
+  title                  String
+  description            String?
+  included               Json     @default("[]")
+  requirements           Json     @default("[]")
+  date                   DateTime
+  start_time             String?
+  end_time               String?
+  participant_limit      Int?
+  route_distance_meters  Int?
+  route_duration_seconds Int?
+  is_deleted             Boolean  @default(false)
+  cancellation_reason    String?
+  created_at             DateTime @default(now())
+  updated_at             DateTime @updatedAt
+
+  createdBy      User               @relation("EventCreator", fields: [created_by_id], references: [id], onDelete: Cascade)
+  images         EventImage[]
+  places         EventPlace[]
+  routeLogs      EventRouteLog[]
+  favorites      EventFavorite[]
+  participants   EventParticipant[]
+  sharedMessages ChatMessage[]      @relation("ChatMessageSharedEvent")
+  notifications  Notification[]
+
+  @@index([created_by_id, created_at])
+  @@index([date, created_at])
+}
+
+model EventParticipant {
+  id         String   @id @default(uuid())
+  event_id   String
+  user_id    String
+  created_at DateTime @default(now())
+
+  event Event @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([event_id, user_id])
+  @@index([event_id, created_at])
+  @@index([user_id, created_at])
+}
+
+model EventFavorite {
+  id         String   @id @default(uuid())
+  event_id   String
+  user_id    String
+  created_at DateTime @default(now())
+
+  event Event @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([event_id, user_id])
+  @@index([user_id, created_at])
+}
+
+model EventImage {
+  id           String   @id @default(uuid())
+  event_id     String
+  kind         String
+  url          String
+  storage_key  String
+  content_type String
+  size         Int
+  order        Int
+  created_at   DateTime @default(now())
+
+  event Event @relation(fields: [event_id], references: [id], onDelete: Cascade)
+
+  @@index([event_id, kind, order])
+}
+
+model EventPlace {
+  id             String   @id @default(uuid())
+  event_id       String
+  role           String
+  place_id       String
+  reference      String
+  description    String
+  main_text      String
+  secondary_text String?
+  types          Json
+  latitude       Float
+  longitude      Float
+  region         String?
+  order          Int
+  created_at     DateTime @default(now())
+
+  event Event @relation(fields: [event_id], references: [id], onDelete: Cascade)
+
+  @@index([event_id, role, order])
+  @@index([place_id])
+}
+
+model EventRouteLog {
+  id            String   @id @default(uuid())
+  event_id      String?
+  user_id       String?
+  google_status String
+  request       Json
+  response      Json
+  created_at    DateTime @default(now())
+
+  event Event? @relation(fields: [event_id], references: [id], onDelete: SetNull)
+  user  User?  @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@index([event_id, created_at])
+  @@index([user_id, created_at])
+}
+
+model QuickRide {
+  id                  String   @id @default(uuid())
+  host_id             String
+  title               String
+  description         String?
+  starts_at           DateTime
+  max_participants    Int?
+  cancellation_reason String?
+  is_deleted          Boolean  @default(false)
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  host          User                   @relation("QuickRideHost", fields: [host_id], references: [id], onDelete: Cascade)
+  places        QuickRidePlace[]
+  participants  QuickRideParticipant[]
+  notifications Notification[]
+
+  @@index([host_id, created_at])
+  @@index([starts_at, created_at])
+}
+
+model QuickRidePlace {
+  id             String   @id @default(uuid())
+  quick_ride_id  String
+  role           String
+  place_id       String
+  reference      String
+  description    String
+  main_text      String
+  secondary_text String?
+  types          Json
+  latitude       Float
+  longitude      Float
+  city           String?
+  region         String?
+  order          Int
+  created_at     DateTime @default(now())
+
+  quickRide QuickRide @relation(fields: [quick_ride_id], references: [id], onDelete: Cascade)
+
+  @@index([quick_ride_id, role, order])
+  @@index([city, region])
+  @@index([place_id])
+}
+
+model QuickRideParticipant {
+  id            String   @id @default(uuid())
+  quick_ride_id String
+  user_id       String
+  created_at    DateTime @default(now())
+
+  quickRide QuickRide @relation(fields: [quick_ride_id], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([quick_ride_id, user_id])
+  @@index([quick_ride_id, created_at])
+  @@index([user_id, created_at])
+}
+
+model FeedPost {
+  id         String   @id @default(uuid())
+  user_id    String
+  type       String   @default("photo_shared")
+  caption    String?
+  audience   String   @default("all")
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  user           User              @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  images         FeedPostImage[]
+  likes          FeedPostLike[]
+  comments       FeedPostComment[]
+  sharedMessages ChatMessage[]     @relation("ChatMessageSharedPost")
+  notifications  Notification[]
+
+  @@index([user_id, created_at])
+}
+
+model FeedPostImage {
+  id                    String   @id @default(uuid())
+  post_id               String
+  url                   String?
+  storage_key           String
+  thumbnail_storage_key String?
+  content_type          String
+  size                  Int
+  duration_ms           Int?
+  order                 Int
+  created_at            DateTime @default(now())
+
+  post FeedPost @relation(fields: [post_id], references: [id], onDelete: Cascade)
+
+  @@index([post_id, order])
+}
+
+model FeedPostLike {
+  id         String   @id @default(uuid())
+  post_id    String
+  user_id    String
+  created_at DateTime @default(now())
+
+  post FeedPost @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  user User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([post_id, user_id])
+}
+
+model FeedPostComment {
+  id         String    @id @default(uuid())
+  post_id    String
+  user_id    String
+  parent_id  String?
+  text       String
+  deleted_at DateTime?
+  edited_at  DateTime?
+  created_at DateTime  @default(now())
+
+  post    FeedPost              @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  user    User                  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  parent  FeedPostComment?      @relation("CommentReplies", fields: [parent_id], references: [id], onDelete: Cascade)
+  replies FeedPostComment[]     @relation("CommentReplies")
+  likes   FeedPostCommentLike[]
+
+  @@index([post_id, created_at])
+  @@index([post_id, parent_id, created_at])
+}
+
+model FeedPostCommentLike {
+  id         String   @id @default(uuid())
+  comment_id String
+  user_id    String
+  created_at DateTime @default(now())
+
+  comment FeedPostComment @relation(fields: [comment_id], references: [id], onDelete: Cascade)
+  user    User            @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([comment_id, user_id])
+}
+
+model Story {
+  id           String   @id @default(uuid())
+  user_id      String
+  storage_key  String
+  content_type String
+  size         Int
+  duration_ms  Int?
+  overlays     Json?
+  is_deleted   Boolean  @default(false)
+  created_at   DateTime @default(now())
+  expires_at   DateTime
+
+  user  User        @relation("StoryAuthor", fields: [user_id], references: [id], onDelete: Cascade)
+  views StoryView[]
+  likes StoryLike[]
+
+  @@index([user_id, expires_at, created_at])
+  @@index([expires_at, created_at])
+}
+
+model StoryView {
+  id         String   @id @default(uuid())
+  story_id   String
+  viewer_id  String
+  created_at DateTime @default(now())
+
+  story  Story @relation(fields: [story_id], references: [id], onDelete: Cascade)
+  viewer User  @relation("StoryViewer", fields: [viewer_id], references: [id], onDelete: Cascade)
+
+  @@unique([story_id, viewer_id])
+  @@index([viewer_id, created_at])
+}
+
+model StoryLike {
+  id         String   @id @default(uuid())
+  story_id   String
+  user_id    String
+  created_at DateTime @default(now())
+
+  story Story @relation(fields: [story_id], references: [id], onDelete: Cascade)
+  user  User  @relation("StoryLiker", fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([story_id, user_id])
+  @@index([user_id, created_at])
+}
+
+model ChatConversation {
+  id              String    @id @default(uuid())
+  user_a_id       String
+  user_b_id       String
+  last_message_at DateTime?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  userA    User          @relation("ChatConversationUserA", fields: [user_a_id], references: [id], onDelete: Cascade)
+  userB    User          @relation("ChatConversationUserB", fields: [user_b_id], references: [id], onDelete: Cascade)
+  messages ChatMessage[]
+
+  @@unique([user_a_id, user_b_id])
+  @@index([user_a_id, last_message_at])
+  @@index([user_b_id, last_message_at])
+}
+
+model ChatMessage {
+  id                String    @id @default(uuid())
+  conversation_id   String
+  sender_id         String
+  client_message_id String?
+  shared_post_id    String?
+  shared_event_id   String?
+  shared_route_id   String?
+  reply_to_message_id String?
+  text              String
+  read_at           DateTime?
+  created_at        DateTime  @default(now())
+
+  conversation   ChatConversation     @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  sender         User                 @relation("ChatMessageSender", fields: [sender_id], references: [id], onDelete: Cascade)
+  sharedPost     FeedPost?            @relation("ChatMessageSharedPost", fields: [shared_post_id], references: [id], onDelete: SetNull)
+  sharedEvent    Event?               @relation("ChatMessageSharedEvent", fields: [shared_event_id], references: [id], onDelete: SetNull)
+  sharedRoute    Route?               @relation("ChatMessageSharedRoute", fields: [shared_route_id], references: [id], onDelete: SetNull)
+  replyToMessage ChatMessage?         @relation("ChatMessageReplies", fields: [reply_to_message_id], references: [id], onDelete: SetNull)
+  replies        ChatMessage[]        @relation("ChatMessageReplies")
+  reactions      ChatMessageReaction[]
+
+  @@unique([sender_id, client_message_id])
+  @@index([conversation_id, created_at])
+  @@index([sender_id, created_at])
+  @@index([shared_post_id])
+  @@index([shared_event_id])
+  @@index([shared_route_id])
+  @@index([reply_to_message_id])
+}
+
+model ChatMessageReaction {
+  id         String   @id @default(uuid())
+  message_id String
+  user_id    String
+  emoji      String
+  created_at DateTime @default(now())
+
+  message ChatMessage @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  user    User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([message_id, user_id])
+  @@index([message_id])
+  @@index([user_id, created_at])
+}
+
+model Notification {
+  id             String   @id @default(uuid())
+  user_id        String
+  actor_id       String
+  post_id        String?
+  event_id       String?
+  quick_ride_id  String?
+  type           String
+  comment_id     String?
+  read           Boolean  @default(false)
+  created_at     DateTime @default(now())
+
+  user      User       @relation("NotificationRecipient", fields: [user_id], references: [id], onDelete: Cascade)
+  actor     User       @relation("NotificationActor", fields: [actor_id], references: [id], onDelete: Cascade)
+  post      FeedPost?  @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  event     Event?     @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  quickRide QuickRide? @relation(fields: [quick_ride_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, read, created_at])
+}
+
+model Service {
+  id          String   @id @default(uuid())
+  name        String
+  category    String
+  imageUrl    String?
+  rating      Float    @default(0)
+  reviewCount Int      @default(0)
+  phone       String?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  // Origem do serviço: "manual" (catálogo próprio) ou "google" (importado do Places)
+  source             String  @default("manual")
+  google_place_id    String? @unique
+  latitude           Float?
+  longitude          Float?
+  address            String?
+  google_rating      Float?
+  google_rating_count Int?
+
+  favoritedBy ServiceFavorite[]
+  reviews     ServiceReview[]
+
+  @@index([category])
+  @@index([source])
+}
+
+model ServiceFavorite {
+  id         String   @id @default(uuid())
+  service_id String
+  user_id    String
+  created_at DateTime @default(now())
+
+  service Service @relation(fields: [service_id], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([service_id, user_id])
+}
+
+model ServiceReview {
+  id         String   @id @default(uuid())
+  service_id String
+  user_id    String
+  rating     Int
+  comment    String?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  service Service @relation(fields: [service_id], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([service_id, user_id])
+  @@index([service_id, created_at])
+}
+
+model PushToken {
+  id         String   @id @default(uuid())
+  user_id    String
+  token      String   @unique
+  platform   String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+}
+
+model FuelPriceByState {
+  id              String   @id @default(uuid())
+  state           String
+  fuel_type       String
+  price_per_liter Float
+  source          String   @default("ANP")
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  @@unique([state, fuel_type])
+  @@index([state])
+}
+
+model Route {
+  id                     String   @id @default(uuid())
+  created_by_id          String
+  user_bike_id           String
+  title                  String
+  status                 String   @default("scheduled")
+  starts_at              DateTime
+  started_at             DateTime?
+  finished_at            DateTime?
+  trip_note              String?
+  avoid_tolls            Boolean  @default(false)
+  optimize_fuel          Boolean  @default(true)
+  route_distance_meters  Int?
+  route_duration_seconds Int?
+  fuel_cost              Float?
+  toll_cost              Float?
+  is_deleted             Boolean  @default(false)
+  is_published           Boolean  @default(false)
+  published_at           DateTime?
+  created_at             DateTime @default(now())
+  updated_at             DateTime @updatedAt
+
+  createdBy User       @relation("RouteCreator", fields: [created_by_id], references: [id], onDelete: Cascade)
+  userBike  UserBike   @relation(fields: [user_bike_id], references: [id], onDelete: Restrict)
+  days      RouteDay[]
+  invitations RouteInvitation[]
+  participants RouteParticipant[]
+  navigatorLocations RouteNavigatorLocation[]
+  photos RoutePhoto[]
+  reviews RouteReview[]
+  sharedMessages ChatMessage[] @relation("ChatMessageSharedRoute")
+
+  @@index([created_by_id, created_at])
+  @@index([status, starts_at])
+}
+
+model RouteReview {
+  id         String   @id @default(uuid())
+  route_id   String
+  user_id    String
+  rating     Int
+  comment    String?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  route Route @relation(fields: [route_id], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([route_id, user_id])
+  @@index([route_id, created_at])
+  @@index([user_id, created_at])
+}
+
+model RoutePhoto {
+  id           String   @id @default(uuid())
+  route_id     String
+  user_id      String
+  url          String
+  storage_key  String
+  content_type String
+  size         Int
+  latitude     Float
+  longitude    Float
+  created_at   DateTime @default(now())
+
+  route Route @relation(fields: [route_id], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([route_id, created_at])
+  @@index([route_id, latitude, longitude])
+}
+
+model RouteDay {
+  id                     String   @id @default(uuid())
+  route_id               String
+  day_number             Int
+  label                  String
+  overnight              Boolean  @default(false)
+  route_distance_meters  Int?
+  route_duration_seconds Int?
+  created_at             DateTime @default(now())
+  updated_at             DateTime @updatedAt
+
+  route  Route        @relation(fields: [route_id], references: [id], onDelete: Cascade)
+  places RoutePlace[]
+
+  @@unique([route_id, day_number])
+  @@index([route_id, day_number])
+}
+
+model RoutePlace {
+  id             String   @id @default(uuid())
+  route_day_id   String
+  role           String
+  place_id       String
+  reference      String   @default("")
+  description    String
+  main_text      String
+  secondary_text String?
+  types          Json     @default("[]")
+  latitude       Float
+  longitude      Float
+  city           String?
+  region         String?
+  order          Int
+  created_at     DateTime @default(now())
+
+  routeDay RouteDay @relation(fields: [route_day_id], references: [id], onDelete: Cascade)
+
+  @@index([route_day_id, role, order])
+  @@index([place_id])
+  @@index([role, city, region])
+}
+
+model RouteInvitation {
+  id              String    @id @default(uuid())
+  route_id        String
+  invited_user_id String
+  invited_by_id   String
+  status          String    @default("pending")
+  created_at      DateTime  @default(now())
+  responded_at    DateTime?
+
+  route       Route @relation(fields: [route_id], references: [id], onDelete: Cascade)
+  invitedUser User  @relation("RouteInvitedUser", fields: [invited_user_id], references: [id], onDelete: Cascade)
+  invitedBy   User  @relation("RouteInvitedBy", fields: [invited_by_id], references: [id], onDelete: Cascade)
+
+  @@unique([route_id, invited_user_id])
+  @@index([invited_user_id, status])
+}
+
+model RouteParticipant {
+  id         String   @id @default(uuid())
+  route_id   String
+  user_id    String
+  created_at DateTime @default(now())
+
+  route Route @relation(fields: [route_id], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([route_id, user_id])
+  @@index([route_id, created_at])
+}
+
+model RouteNavigatorLocation {
+  route_id   String
+  user_id    String
+  latitude   Float
+  longitude  Float
+  heading    Float    @default(0)
+  updated_at DateTime @updatedAt
+
+  route Route @relation(fields: [route_id], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@id([route_id, user_id])
+  @@index([route_id, updated_at])
+}
