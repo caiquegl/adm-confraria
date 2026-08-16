@@ -56,7 +56,7 @@ export default async function VersoesPage({
         <h1 className="page-title">Versões</h1>
         <p className="page-subtitle">
           Bloqueie o app até o usuário atualizar na loja ou aplicar um EAS
-          Update. Remova um item da lista para desfazer aquele bloqueio.
+          Update. Edite ou remova um item da lista quando quiser.
         </p>
       </div>
 

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 
 import { useActionToast } from "@/lib/use-action-toast";
@@ -48,7 +49,15 @@ export function VersionBlockList({ blocks }: VersionBlockListProps) {
                 {block.createdAt}
               </td>
               <td className="px-4 py-3 text-right">
-                <RemoveBlockButton id={block.id} />
+                <div className="flex items-center justify-end gap-3">
+                  <Link
+                    className="font-semibold text-accent hover:underline"
+                    href={`/versoes/${block.id}`}
+                  >
+                    Editar
+                  </Link>
+                  <RemoveBlockButton id={block.id} />
+                </div>
               </td>
             </tr>
           ))}

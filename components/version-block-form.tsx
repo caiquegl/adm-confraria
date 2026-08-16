@@ -3,9 +3,13 @@
 import { useActionState, useState } from "react";
 
 import { useActionToast } from "@/lib/use-action-toast";
-import { createVersionBlockAction } from "@/lib/version-policy-actions";
+import {
+  createVersionBlockAction,
+  updateVersionBlockAction,
+} from "@/lib/version-policy-actions";
 import {
   type VersionBlockKind,
+  type VersionBlockRow,
   type VersionChannel,
   type VersionPolicyActionResult,
 } from "@/lib/version-policy";
@@ -14,17 +18,24 @@ const DEFAULT_STORE_MESSAGE =
   "Há uma nova versão do Confraria. Atualize na loja para continuar.";
 const DEFAULT_OTA_MESSAGE =
   "Há uma atualização pronta. Feche o app e abra novamente para instalar automaticamente.";
+const DEFAULT_MIN_APP_VERSION = "1.0.1";
+const DEFAULT_MIN_OTA_VERSION = "1";
+const DEFAULT_ANDROID_STORE_URL =
+  "https://play.google.com/store/apps/details?id=com.caiquegl22.appconfraria";
+const DEFAULT_IOS_STORE_URL = "https://apps.apple.com/app/id...";
 
 const initial: VersionPolicyActionResult = {};
 
 type VersionBlockFormProps = {
+  block?: VersionBlockRow;
   channel: VersionChannel;
 };
 
-export function VersionBlockForm({ channel }: VersionBlockFormProps) {
-  const [kind, setKind] = useState<VersionBlockKind>("store");
+export function VersionBlockForm({ block, channel }: VersionBlockFormProps) {
+  const isEdit = Boolean(block);
+  const [kind, setKind] = useState<VersionBlockKind>(block?.kind ?? "store");
   const [state, formAction, pending] = useActionState(
-    createVersionBlockAction,
+    isEdit ? updateVersionBlockAction : createVersionBlockAction,
     initial,
   );
 
@@ -34,31 +45,44 @@ export function VersionBlockForm({ channel }: VersionBlockFormProps) {
     <form
       action={formAction}
       className="panel-card space-y-4 p-5 sm:p-6"
-      key={state.success ? state.at : "form"}
+      key={isEdit ? block?.id : state.success ? state.at : "form"}
     >
       <input name="channel" type="hidden" value={channel} />
       <input name="kind" type="hidden" value={kind} />
+      {block ? <input name="id" type="hidden" value={block.id} /> : null}
 
       <div>
-        <h2 className="text-base font-semibold">Novo bloqueio</h2>
+        <h2 className="text-base font-semibold">
+          {isEdit ? "Editar bloqueio" : "Novo bloqueio"}
+        </h2>
         <p className="mt-1 text-sm text-muted">
-          Cada item entra na lista e pode ser removido depois. Se houver vários
-          do mesmo tipo, o app usa o mais restritivo.
+          {isEdit
+            ? "Altere a versão exigida, as URLs ou a mensagem deste bloqueio."
+            : "Cada item entra na lista e pode ser editado ou removido depois. Se houver vários do mesmo tipo, o app usa o mais restritivo."}
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <KindButton
-          active={kind === "store"}
-          label="Loja"
-          onClick={() => setKind("store")}
-        />
-        <KindButton
-          active={kind === "ota"}
-          label="EAS Update"
-          onClick={() => setKind("ota")}
-        />
-      </div>
+      {isEdit ? (
+        <p className="text-sm text-muted">
+          Tipo:{" "}
+          <span className="font-semibold text-foreground">
+            {kind === "store" ? "Loja" : "EAS Update"}
+          </span>
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          <KindButton
+            active={kind === "store"}
+            label="Loja"
+            onClick={() => setKind("store")}
+          />
+          <KindButton
+            active={kind === "ota"}
+            label="EAS Update"
+            onClick={() => setKind("ota")}
+          />
+        </div>
+      )}
 
       {kind === "store" ? (
         <>
@@ -66,8 +90,8 @@ export function VersionBlockForm({ channel }: VersionBlockFormProps) {
             <span className="text-sm font-medium">Versão mínima do app</span>
             <input
               className="field-input"
+              defaultValue={block?.minAppVersion || DEFAULT_MIN_APP_VERSION}
               name="minAppVersion"
-              placeholder="1.0.1"
               required
             />
             <span className="text-xs text-muted">
@@ -80,16 +104,16 @@ export function VersionBlockForm({ channel }: VersionBlockFormProps) {
               <span className="text-sm font-medium">URL Play Store</span>
               <input
                 className="field-input"
+                defaultValue={block?.androidStoreUrl || DEFAULT_ANDROID_STORE_URL}
                 name="androidStoreUrl"
-                placeholder="https://play.google.com/store/apps/details?id=..."
               />
             </label>
             <label className="block space-y-1.5">
               <span className="text-sm font-medium">URL App Store</span>
               <input
                 className="field-input"
+                defaultValue={block?.iosStoreUrl || DEFAULT_IOS_STORE_URL}
                 name="iosStoreUrl"
-                placeholder="https://apps.apple.com/app/id..."
               />
             </label>
           </div>
@@ -99,9 +123,13 @@ export function VersionBlockForm({ channel }: VersionBlockFormProps) {
           <span className="text-sm font-medium">OTA mínima (constante)</span>
           <input
             className="field-input"
+            defaultValue={
+              block?.minOtaVersion != null
+                ? String(block.minOtaVersion)
+                : DEFAULT_MIN_OTA_VERSION
+            }
             inputMode="numeric"
             name="minOtaVersion"
-            placeholder="1"
             required
           />
           <span className="text-xs text-muted">
@@ -115,15 +143,23 @@ export function VersionBlockForm({ channel }: VersionBlockFormProps) {
         <span className="text-sm font-medium">Mensagem</span>
         <textarea
           className="field-input min-h-24"
-          name="message"
-          placeholder={
-            kind === "store" ? DEFAULT_STORE_MESSAGE : DEFAULT_OTA_MESSAGE
+          defaultValue={
+            block?.message ||
+            (kind === "store" ? DEFAULT_STORE_MESSAGE : DEFAULT_OTA_MESSAGE)
           }
+          key={kind}
+          name="message"
         />
       </label>
 
       <button className="btn-primary" disabled={pending} type="submit">
-        {pending ? "Adicionando..." : "Adicionar bloqueio"}
+        {pending
+          ? isEdit
+            ? "Salvando..."
+            : "Adicionando..."
+          : isEdit
+            ? "Salvar alterações"
+            : "Adicionar bloqueio"}
       </button>
     </form>
   );
