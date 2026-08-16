@@ -1,6 +1,14 @@
-import { VersionPolicyForm } from "@/components/version-policy-form";
+import Link from "next/link";
+
+import { VersionBlockForm } from "@/components/version-block-form";
+import { VersionBlockList } from "@/components/version-block-list";
 import { prisma } from "@/lib/prisma";
-import { VERSION_CHANNELS, type VersionChannel } from "@/lib/version-policy";
+import {
+  VERSION_CHANNELS,
+  isVersionBlockKind,
+  type VersionBlockKind,
+  type VersionChannel,
+} from "@/lib/version-policy";
 
 type SearchParams = Promise<{ channel?: string }>;
 
@@ -18,8 +26,28 @@ export default async function VersoesPage({
     ? params.channel
     : "production";
 
-  const policy = await prisma.appVersionPolicy.findUnique({
+  const rows = await prisma.appVersionBlock.findMany({
+    orderBy: { created_at: "desc" },
     where: { channel },
+  });
+
+  const blocks = rows.flatMap((row) => {
+    const kind: VersionBlockKind | null = isVersionBlockKind(row.kind)
+      ? row.kind
+      : null;
+    if (!kind) return [];
+    return [
+      {
+        androidStoreUrl: row.android_store_url,
+        createdAt: row.created_at.toLocaleString("pt-BR"),
+        id: row.id,
+        iosStoreUrl: row.ios_store_url,
+        kind,
+        message: row.message,
+        minAppVersion: row.min_app_version,
+        minOtaVersion: row.min_ota_version,
+      },
+    ];
   });
 
   return (
@@ -28,22 +56,24 @@ export default async function VersoesPage({
         <h1 className="page-title">Versões</h1>
         <p className="page-subtitle">
           Bloqueie o app até o usuário atualizar na loja ou aplicar um EAS
-          Update.
+          Update. Remova um item da lista para desfazer aquele bloqueio.
         </p>
       </div>
 
-      <VersionPolicyForm
-        channel={channel}
-        policy={{
-          androidStoreUrl: policy?.android_store_url ?? "",
-          iosStoreUrl: policy?.ios_store_url ?? "",
-          messageOta: policy?.message_ota ?? "",
-          messageStore: policy?.message_store ?? "",
-          minAppVersion: policy?.min_app_version ?? "",
-          minOtaVersion:
-            policy?.min_ota_version != null ? String(policy.min_ota_version) : "",
-        }}
-      />
+      <div className="flex flex-wrap gap-2">
+        {VERSION_CHANNELS.map((item) => (
+          <Link
+            className={item === channel ? "btn-primary-sm" : "btn-secondary"}
+            href={`/versoes?channel=${item}`}
+            key={item}
+          >
+            {item}
+          </Link>
+        ))}
+      </div>
+
+      <VersionBlockList blocks={blocks} />
+      <VersionBlockForm channel={channel} />
     </div>
   );
 }
