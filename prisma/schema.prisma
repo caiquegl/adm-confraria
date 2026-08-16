@@ -909,3 +909,16 @@ model RouteNavigatorLocation {
   @@id([route_id, user_id])
   @@index([route_id, updated_at])
 }
+
+model AppVersionPolicy {
+  id                 String   @id @default(uuid())
+  channel            String   @unique
+  min_app_version    String?
+  min_ota_version    Int?
+  android_store_url  String?
+  ios_store_url      String?
+  message_store      String?
+  message_ota        String?
+  updated_at         DateTime @updatedAt
+  updated_by_user_id String?
+}

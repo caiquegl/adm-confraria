@@ -71,9 +71,31 @@ function LogoutIcon({ className }: { className?: string }) {
   );
 }
 
+function VersionsIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden
+      className={className}
+      fill="none"
+      height="18"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.8"
+      viewBox="0 0 24 24"
+      width="18"
+    >
+      <path d="M12 20V10" />
+      <path d="M18 20V4" />
+      <path d="M6 20v-4" />
+    </svg>
+  );
+}
+
 const links = [
   { href: "/usuarios", label: "Usuários", Icon: UsersIcon },
   { href: "/eventos", label: "Eventos", Icon: EventsIcon },
+  { href: "/versoes", label: "Versões", Icon: VersionsIcon },
 ];
 
 const COLLAPSE_KEY = "adm-sidebar-collapsed";
