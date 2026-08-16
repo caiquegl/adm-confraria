@@ -1,9 +1,6 @@
 import { VersionPolicyForm } from "@/components/version-policy-form";
 import { prisma } from "@/lib/prisma";
-import {
-  VERSION_CHANNELS,
-  type VersionChannel,
-} from "@/lib/version-policy-actions";
+import { VERSION_CHANNELS, type VersionChannel } from "@/lib/version-policy";
 
 type SearchParams = Promise<{ channel?: string }>;
 

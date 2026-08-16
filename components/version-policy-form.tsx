@@ -4,19 +4,19 @@ import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useActionToast } from "@/lib/use-action-toast";
+import { updateVersionPolicyAction } from "@/lib/version-policy-actions";
 import {
-  updateVersionPolicyAction,
   VERSION_CHANNELS,
-  type ActionResult,
   type VersionChannel,
-} from "@/lib/version-policy-actions";
+  type VersionPolicyActionResult,
+} from "@/lib/version-policy";
 
 const DEFAULT_STORE_MESSAGE =
   "Há uma nova versão do Confraria. Atualize na loja para continuar.";
 const DEFAULT_OTA_MESSAGE =
   "Há uma atualização pronta. Feche o app e abra novamente para instalar automaticamente.";
 
-const initial: ActionResult = {};
+const initial: VersionPolicyActionResult = {};
 
 type VersionPolicyFormProps = {
   channel: VersionChannel;

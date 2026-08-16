@@ -5,16 +5,10 @@ import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/session";
-
-export const VERSION_CHANNELS = ["production", "preview"] as const;
-
-export type VersionChannel = (typeof VERSION_CHANNELS)[number];
-
-export type ActionResult = {
-  at?: number;
-  error?: string;
-  success?: string;
-};
+import {
+  VERSION_CHANNELS,
+  type VersionPolicyActionResult,
+} from "@/lib/version-policy";
 
 function emptyToNull(value: FormDataEntryValue | null): string | null {
   if (typeof value !== "string") return null;
@@ -32,13 +26,17 @@ const updatePolicySchema = z.object({
     .string()
     .regex(/^\d+\.\d+\.\d+$/, "Use semver (ex.: 1.0.1)")
     .nullable(),
-  minOtaVersion: z.number().int().positive("OTA deve ser um inteiro positivo").nullable(),
+  minOtaVersion: z
+    .number()
+    .int()
+    .positive("OTA deve ser um inteiro positivo")
+    .nullable(),
 });
 
 export async function updateVersionPolicyAction(
-  _prev: ActionResult,
+  _prev: VersionPolicyActionResult,
   formData: FormData,
-): Promise<ActionResult> {
+): Promise<VersionPolicyActionResult> {
   const session = await requireSession();
 
   const minOtaRaw = emptyToNull(formData.get("minOtaVersion"));
@@ -53,7 +51,11 @@ export async function updateVersionPolicyAction(
     messageStore: emptyToNull(formData.get("messageStore")),
     minAppVersion: emptyToNull(formData.get("minAppVersion")),
     minOtaVersion:
-      minOtaRaw == null ? null : Number.isFinite(minOtaVersion) ? minOtaVersion : minOtaRaw,
+      minOtaRaw == null
+        ? null
+        : Number.isFinite(minOtaVersion)
+          ? minOtaVersion
+          : minOtaRaw,
   });
 
   if (!parsed.success) {
