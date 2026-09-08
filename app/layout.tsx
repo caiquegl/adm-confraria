@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
+import { FaroProvider } from "@/components/faro-provider";
 import { Toaster } from "@/components/toaster";
 
 import "./globals.css";
@@ -27,8 +28,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="pt-BR"
     >
       <body className="min-h-full flex flex-col">
-        {children}
-        <Toaster />
+        <FaroProvider>
+          {children}
+          <Toaster />
+        </FaroProvider>
       </body>
     </html>
   );

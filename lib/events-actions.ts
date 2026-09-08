@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { admLog } from "@/lib/adm-log";
 import { nestFetch } from "@/lib/api";
 import {
   calendarDateAtNoonFromInstant,
@@ -154,6 +155,7 @@ export async function updateEventAction(
     where: { id: data.eventId },
   });
 
+  admLog.info("event updated", { eventId: data.eventId });
   revalidatePath("/eventos");
   revalidatePath(`/eventos/${data.eventId}`);
   return { at: Date.now(), success: "Evento atualizado." };
@@ -326,10 +328,15 @@ export async function createEventViaApiAction(
     } catch {
       // keep default
     }
+    admLog.warn("event create failed", {
+      path: "/events",
+      status: response.status,
+    });
     return { at: Date.now(), error: message };
   }
 
   const created = (await response.json()) as { id: string };
+  admLog.info("event created", { eventId: created.id });
   revalidatePath("/eventos");
   redirect(`/eventos/${created.id}`);
 }

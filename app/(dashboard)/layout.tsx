@@ -13,5 +13,13 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  return <AdminShell userName={session.name}>{children}</AdminShell>;
+  return (
+    <AdminShell
+      userEmail={session.email}
+      userId={session.userId}
+      userName={session.name}
+    >
+      {children}
+    </AdminShell>
+  );
 }

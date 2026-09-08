@@ -1,13 +1,28 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef } from "react";
 
+import { admLog } from "@/lib/adm-log";
 import { loginAction, type LoginState } from "@/lib/auth-actions";
+import { initFaro } from "@/lib/faro";
 
 const initialState: LoginState = {};
 
 export default function LoginPage() {
   const [state, formAction, pending] = useActionState(loginAction, initialState);
+  const lastError = useRef<string | null>(null);
+
+  useEffect(() => {
+    initFaro();
+  }, []);
+
+  useEffect(() => {
+    if (!state.error || state.error === lastError.current) {
+      return;
+    }
+    lastError.current = state.error;
+    admLog.warn("login failed", { reason: state.error });
+  }, [state.error]);
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden px-4">

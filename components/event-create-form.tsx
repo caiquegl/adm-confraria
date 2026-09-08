@@ -26,7 +26,7 @@ export function EventCreateForm({ categories }: EventCreateFormProps) {
   const [endDate, setEndDate] = useState("");
   const [clientError, setClientError] = useState<string | null>(null);
 
-  useActionToast(state);
+  useActionToast(state, { logAction: "event create" });
 
   function handleStartDateChange(value: string) {
     setStartDate(value);

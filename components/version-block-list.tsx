@@ -80,7 +80,10 @@ function RemoveBlockButton({ id }: { id: string }) {
     initial,
   );
 
-  useActionToast(state);
+  useActionToast(state, {
+    logAction: "version.block.delete",
+    logAttrs: { blockId: id },
+  });
 
   return (
     <form

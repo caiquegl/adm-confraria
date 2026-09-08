@@ -44,8 +44,14 @@ export function EventEditForm({ categories, event }: EventEditFormProps) {
   const [endDate, setEndDate] = useState(event.end_date);
   const [clientError, setClientError] = useState<string | null>(null);
 
-  useActionToast(state);
-  useActionToast(cancelState);
+  useActionToast(state, {
+    logAction: "event edit",
+    logAttrs: { eventId: event.id },
+  });
+  useActionToast(cancelState, {
+    logAction: "event cancel",
+    logAttrs: { eventId: event.id },
+  });
 
   function handleStartDateChange(value: string) {
     setStartDate(value);

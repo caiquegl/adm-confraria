@@ -1,3 +1,5 @@
+import { admLog } from "@/lib/adm-log";
+
 function getApiBaseUrl() {
   return (
     process.env.API_URL ??
@@ -17,6 +19,11 @@ export async function nestLogin(
   });
 
   if (!response.ok) {
+    admLog.warn("nestFetch error", {
+      method: "POST",
+      path: "/users/login",
+      status: response.status,
+    });
     throw new Error("Falha ao autenticar na API");
   }
 
@@ -31,10 +38,21 @@ export async function nestFetch(
   const headers = new Headers(init?.headers);
   headers.set("Authorization", `Bearer ${apiToken}`);
 
-  return fetch(`${getApiBaseUrl()}${path}`, {
+  const method = (init?.method ?? "GET").toUpperCase();
+  const response = await fetch(`${getApiBaseUrl()}${path}`, {
     ...init,
     headers,
   });
+
+  if (!response.ok) {
+    admLog.warn("nestFetch error", {
+      method,
+      path,
+      status: response.status,
+    });
+  }
+
+  return response;
 }
 
 export type PlacePrediction = {

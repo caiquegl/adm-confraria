@@ -39,7 +39,14 @@ export function VersionBlockForm({ block, channel }: VersionBlockFormProps) {
     initial,
   );
 
-  useActionToast(state);
+  useActionToast(state, {
+    logAction: isEdit ? "version.block.update" : "version.block.create",
+    logAttrs: {
+      blockId: block?.id,
+      channel,
+      kind: block?.kind ?? kind,
+    },
+  });
 
   return (
     <form

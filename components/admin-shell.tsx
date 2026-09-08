@@ -4,7 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { admLog } from "@/lib/adm-log";
 import { logoutAction } from "@/lib/auth-actions";
+import { getFaro, initFaro } from "@/lib/faro";
 
 function UsersIcon({ className }: { className?: string }) {
   return (
@@ -100,11 +102,17 @@ const links = [
 
 const COLLAPSE_KEY = "adm-sidebar-collapsed";
 
+const LOGIN_LOG_KEY = "adm-faro-login-logged";
+
 export function AdminShell({
   children,
+  userEmail,
+  userId,
   userName,
 }: {
   children: React.ReactNode;
+  userEmail: string;
+  userId: string;
   userName: string;
 }) {
   const pathname = usePathname();
@@ -117,6 +125,21 @@ export function AdminShell({
       setCollapsed(true);
     }
   }, []);
+
+  useEffect(() => {
+    initFaro();
+    const instance = getFaro();
+    if (!instance) {
+      return;
+    }
+
+    instance.api.setUser({ email: userEmail, id: userId });
+
+    if (sessionStorage.getItem(LOGIN_LOG_KEY) !== userId) {
+      sessionStorage.setItem(LOGIN_LOG_KEY, userId);
+      admLog.info("login success", { email: userEmail, userId });
+    }
+  }, [userEmail, userId]);
 
   function toggleCollapsed() {
     setCollapsed((current) => {
@@ -214,7 +237,13 @@ export function AdminShell({
               {userName}
             </p>
           ) : null}
-          <form action={logoutAction}>
+          <form
+            action={logoutAction}
+            onSubmit={() => {
+              sessionStorage.removeItem(LOGIN_LOG_KEY);
+              getFaro()?.api.resetUser();
+            }}
+          >
             <button
               className={`flex w-full items-center rounded-xl border border-white/15 text-sm hover:bg-white/5 ${
                 collapsed ? "justify-center px-0 py-2.5" : "gap-2.5 px-3 py-2.5"
