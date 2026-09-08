@@ -1,0 +1,14 @@
+---
+description: Observabilidade — Grafana Faro + Sentry em paralelo
+alwaysApply: true
+---
+
+# Observabilidade (Grafana + Sentry)
+
+Use **Sentry e Grafana em paralelo** ao investigar bugs ou fluxos no ADM.
+
+- **Sentry**: exceptions
+- **Grafana Faro → Loki**: `admLog` (`lib/adm-log.ts`) — login, CRUD, nestFetch
+- Loki: `{service_name="adm-confraria"}`
+- Sem tokens/senhas nos logs
+- MCP: `query_loki_logs` no datasource `grafanacloud-logs` quando disponível
