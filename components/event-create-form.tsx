@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 import { EventImageFields } from "@/components/event-image-fields";
 import { EventPlacesFields } from "@/components/event-places-fields";
@@ -8,6 +8,7 @@ import {
   createEventViaApiAction,
   type ActionResult,
 } from "@/lib/events-actions";
+import { parseBrazilDateTime } from "@/lib/event-period";
 import { useActionToast } from "@/lib/use-action-toast";
 
 const initial: ActionResult = {};
@@ -21,15 +22,57 @@ export function EventCreateForm({ categories }: EventCreateFormProps) {
     createEventViaApiAction,
     initial,
   );
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [clientError, setClientError] = useState<string | null>(null);
 
   useActionToast(state);
 
+  function handleStartDateChange(value: string) {
+    setStartDate(value);
+    setEndDate((current) => {
+      if (!current || current === startDate) {
+        return value;
+      }
+      return current;
+    });
+  }
+
+  function handleSubmit(formData: FormData) {
+    setClientError(null);
+
+    const start = String(formData.get("startDate") ?? "").trim();
+    const end = String(formData.get("endDate") ?? "").trim();
+    const startTime = String(formData.get("startTime") ?? "").trim();
+    const endTime = String(formData.get("endTime") ?? "").trim();
+
+    if (!startTime || !endTime) {
+      setClientError("Horário de início e término são obrigatórios");
+      return;
+    }
+
+    const startsAt = parseBrazilDateTime(start, startTime);
+    const endsAt = parseBrazilDateTime(end, endTime);
+
+    if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime())) {
+      setClientError("Datas ou horários inválidos");
+      return;
+    }
+
+    if (endsAt.getTime() <= startsAt.getTime()) {
+      setClientError("O término deve ser posterior ao início");
+      return;
+    }
+
+    return formAction(formData);
+  }
+
   return (
-    <form action={formAction} className="space-y-5" encType="multipart/form-data">
+    <form action={handleSubmit} className="space-y-5" encType="multipart/form-data">
       <section className="panel-card space-y-4 p-5 sm:p-6">
         <div>
           <h2 className="section-title">Informações básicas</h2>
-          <p className="text-xs text-muted">Título, categoria e horários</p>
+          <p className="text-xs text-muted">Título, categoria e período</p>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -50,21 +93,46 @@ export function EventCreateForm({ categories }: EventCreateFormProps) {
             </select>
           </label>
 
+          <div className="hidden sm:block" />
+
           <label className="block space-y-1.5">
-            <span className="text-sm font-medium">Data</span>
-            <input className="field-input" name="date" required type="date" />
+            <span className="text-sm font-medium">Data de início</span>
+            <input
+              className="field-input"
+              name="startDate"
+              onChange={(event) => handleStartDateChange(event.target.value)}
+              required
+              type="date"
+              value={startDate}
+            />
+          </label>
+
+          <label className="block space-y-1.5">
+            <span className="text-sm font-medium">Data de término</span>
+            <input
+              className="field-input"
+              name="endDate"
+              onChange={(event) => setEndDate(event.target.value)}
+              required
+              type="date"
+              value={endDate}
+            />
           </label>
 
           <label className="block space-y-1.5">
             <span className="text-sm font-medium">Início</span>
-            <input className="field-input" name="startTime" type="time" />
+            <input className="field-input" name="startTime" required type="time" />
           </label>
 
           <label className="block space-y-1.5">
             <span className="text-sm font-medium">Fim</span>
-            <input className="field-input" name="endTime" type="time" />
+            <input className="field-input" name="endTime" required type="time" />
           </label>
         </div>
+
+        {clientError || state.error ? (
+          <p className="text-sm text-danger">{clientError ?? state.error}</p>
+        ) : null}
       </section>
 
       <section className="panel-card space-y-4 p-5 sm:p-6">

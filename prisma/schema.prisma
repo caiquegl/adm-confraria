@@ -297,6 +297,8 @@ model Event {
   included               Json     @default("[]")
   requirements           Json     @default("[]")
   date                   DateTime
+  starts_at              DateTime
+  ends_at                DateTime
   start_time             String?
   end_time               String?
   participant_limit      Int?
@@ -318,6 +320,8 @@ model Event {
 
   @@index([created_by_id, created_at])
   @@index([date, created_at])
+  @@index([starts_at, created_at])
+  @@index([ends_at])
 }
 
 model EventParticipant {

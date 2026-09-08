@@ -2,16 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { EventEditForm } from "@/components/event-edit-form";
+import {
+  formatEventPeriodLabel,
+  resolveEventFormPeriod,
+} from "@/lib/event-period";
 import { prisma } from "@/lib/prisma";
 
 type Params = Promise<{ id: string }>;
-
-function toDateInputValue(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
 
 function jsonToStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) {
@@ -57,6 +54,21 @@ export default async function EventoDetailPage({
     notFound();
   }
 
+  const period = resolveEventFormPeriod({
+    date: event.date,
+    end_time: event.end_time,
+    ends_at: event.ends_at,
+    start_time: event.start_time,
+    starts_at: event.starts_at,
+  });
+
+  const periodLabel = formatEventPeriodLabel({
+    endsAt: period.endsAt,
+    endTime: period.endTime,
+    startsAt: period.startsAt,
+    startTime: period.startTime,
+  });
+
   return (
     <div className="space-y-6">
       <div>
@@ -65,6 +77,7 @@ export default async function EventoDetailPage({
         </Link>
         <h1 className="page-title mt-2">{event.title}</h1>
         <p className="page-subtitle">
+          {periodLabel ? `${periodLabel} · ` : null}
           Organizador: {event.createdBy.name} ({event.createdBy.email}) ·{" "}
           {event._count.participants} inscritos
         </p>
@@ -103,15 +116,16 @@ export default async function EventoDetailPage({
         event={{
           cancellation_reason: event.cancellation_reason,
           category: event.category,
-          date: toDateInputValue(event.date),
           description: event.description,
-          end_time: event.end_time,
+          end_date: period.endDate,
+          end_time: period.endTime,
           id: event.id,
           included: jsonToStringArray(event.included),
           is_deleted: event.is_deleted,
           participant_limit: event.participant_limit,
           requirements: jsonToStringArray(event.requirements),
-          start_time: event.start_time,
+          start_date: period.startDate,
+          start_time: period.startTime,
           title: event.title,
         }}
       />

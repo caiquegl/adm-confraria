@@ -6,6 +6,12 @@ import { z } from "zod";
 
 import { nestFetch } from "@/lib/api";
 import {
+  calendarDateAtNoonFromInstant,
+  isValidHhMm,
+  isoDateToBrazilian,
+  parseBrazilDateTime,
+} from "@/lib/event-period";
+import {
   normalizePlaceReference,
   type EventPlaceReference,
 } from "@/lib/places";
@@ -20,14 +26,15 @@ export type ActionResult = {
 
 const updateEventSchema = z.object({
   category: z.string().min(1),
-  date: z.string().min(1),
   description: z.string().optional(),
-  end_time: z.string().optional(),
+  end_date: z.string().min(1),
+  end_time: z.string().min(1),
   eventId: z.string().uuid(),
   included: z.string().optional(),
   participant_limit: z.string().optional(),
   requirements: z.string().optional(),
-  start_time: z.string().optional(),
+  start_date: z.string().min(1),
+  start_time: z.string().min(1),
   title: z.string().min(1),
 });
 
@@ -41,6 +48,49 @@ function parseLines(value?: string) {
     .filter(Boolean);
 }
 
+function resolveFormPeriod(
+  startDate: string,
+  endDate: string,
+  startTime: string,
+  endTime: string,
+):
+  | { error: string }
+  | {
+      date: Date;
+      endTime: string;
+      endsAt: Date;
+      startTime: string;
+      startsAt: Date;
+    } {
+  if (!isValidHhMm(startTime)) {
+    return { error: "Horário de início inválido" };
+  }
+  if (!isValidHhMm(endTime)) {
+    return { error: "Horário de término inválido" };
+  }
+
+  const startsAt = parseBrazilDateTime(startDate, startTime);
+  const endsAt = parseBrazilDateTime(endDate, endTime);
+
+  if (Number.isNaN(startsAt.getTime())) {
+    return { error: "Data de início inválida" };
+  }
+  if (Number.isNaN(endsAt.getTime())) {
+    return { error: "Data de término inválida" };
+  }
+  if (endsAt.getTime() <= startsAt.getTime()) {
+    return { error: "O término deve ser posterior ao início" };
+  }
+
+  return {
+    date: calendarDateAtNoonFromInstant(startsAt),
+    endTime,
+    endsAt,
+    startTime,
+    startsAt,
+  };
+}
+
 export async function updateEventAction(
   _prev: ActionResult,
   formData: FormData,
@@ -49,13 +99,14 @@ export async function updateEventAction(
 
   const parsed = updateEventSchema.safeParse({
     category: formData.get("category"),
-    date: formData.get("date"),
     description: String(formData.get("description") ?? ""),
+    end_date: formData.get("end_date"),
     end_time: String(formData.get("end_time") ?? ""),
     eventId: formData.get("eventId"),
     included: String(formData.get("included") ?? ""),
     participant_limit: String(formData.get("participant_limit") ?? ""),
     requirements: String(formData.get("requirements") ?? ""),
+    start_date: formData.get("start_date"),
     start_time: String(formData.get("start_time") ?? ""),
     title: formData.get("title"),
   });
@@ -75,16 +126,29 @@ export async function updateEventAction(
     return { at: Date.now(), error: "Limite de participantes inválido" };
   }
 
+  const period = resolveFormPeriod(
+    data.start_date.trim(),
+    data.end_date.trim(),
+    data.start_time.trim(),
+    data.end_time.trim(),
+  );
+
+  if ("error" in period) {
+    return { at: Date.now(), error: period.error };
+  }
+
   await prisma.event.update({
     data: {
       category: data.category.trim(),
-      date: new Date(data.date),
+      date: period.date,
       description: data.description?.trim() || null,
-      end_time: data.end_time?.trim() || null,
+      end_time: period.endTime,
+      ends_at: period.endsAt,
       included: parseLines(data.included),
       participant_limit: participantLimit,
       requirements: parseLines(data.requirements),
-      start_time: data.start_time?.trim() || null,
+      start_time: period.startTime,
+      starts_at: period.startsAt,
       title: data.title.trim(),
     },
     where: { id: data.eventId },
@@ -148,7 +212,8 @@ export async function createEventViaApiAction(
 
   const title = String(formData.get("title") ?? "").trim();
   const category = String(formData.get("category") ?? "").trim();
-  const date = String(formData.get("date") ?? "").trim();
+  const startDate = String(formData.get("startDate") ?? "").trim();
+  const endDate = String(formData.get("endDate") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   const startTime = String(formData.get("startTime") ?? "").trim();
   const endTime = String(formData.get("endTime") ?? "").trim();
@@ -158,11 +223,16 @@ export async function createEventViaApiAction(
   const requirements = parseLines(String(formData.get("requirements") ?? ""));
   const locationRaw = String(formData.get("locationJson") ?? "");
 
-  if (!title || !category || !date) {
+  if (!title || !category || !startDate || !endDate) {
     return {
       at: Date.now(),
-      error: "Título, categoria e data são obrigatórios",
+      error: "Título, categoria, data de início e data de término são obrigatórios",
     };
+  }
+
+  const period = resolveFormPeriod(startDate, endDate, startTime, endTime);
+  if ("error" in period) {
+    return { at: Date.now(), error: period.error };
   }
 
   let location: EventPlaceReference;
@@ -199,17 +269,17 @@ export async function createEventViaApiAction(
     }
   }
 
-  // date from input type=date is YYYY-MM-DD; Nest expects Brazilian DD/MM/YYYY
-  const [year, month, day] = date.split("-");
-  const brazilianDate =
-    year && month && day ? `${day}/${month}/${year}` : date;
+  // HTML date inputs are YYYY-MM-DD; Nest expects Brazilian DD/MM/YYYY
+  const brazilianStartDate = isoDateToBrazilian(startDate);
+  const brazilianEndDate = isoDateToBrazilian(endDate);
 
   const payload = {
     category,
-    date: brazilianDate,
+    date: brazilianStartDate,
     description: description || null,
     destination,
-    endTime: endTime || null,
+    endDate: brazilianEndDate,
+    endTime: period.endTime,
     hasParticipantLimit,
     included,
     location,
@@ -217,7 +287,8 @@ export async function createEventViaApiAction(
       ? Number(maxParticipantsRaw) || null
       : null,
     requirements,
-    startTime: startTime || null,
+    startDate: brazilianStartDate,
+    startTime: period.startTime,
     stops,
     title,
   };

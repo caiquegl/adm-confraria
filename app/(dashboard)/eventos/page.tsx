@@ -1,12 +1,9 @@
 import Link from "next/link";
 
+import { formatEventPeriodLabel } from "@/lib/event-period";
 import { prisma } from "@/lib/prisma";
 
 type SearchParams = Promise<{ q?: string; status?: string }>;
-
-function formatDate(date: Date) {
-  return date.toLocaleDateString("pt-BR");
-}
 
 export default async function EventosPage({
   searchParams,
@@ -21,7 +18,7 @@ export default async function EventosPage({
       createdBy: { select: { name: true } },
       _count: { select: { participants: true } },
     },
-    orderBy: { date: "desc" },
+    orderBy: { starts_at: "desc" },
     take: 100,
     where: {
       AND: [
@@ -84,7 +81,7 @@ export default async function EventosPage({
             <tr>
               <th className="px-4 py-3 font-medium">Título</th>
               <th className="px-4 py-3 font-medium">Categoria</th>
-              <th className="px-4 py-3 font-medium">Data</th>
+              <th className="px-4 py-3 font-medium">Período</th>
               <th className="px-4 py-3 font-medium">Organizador</th>
               <th className="px-4 py-3 font-medium">Inscritos</th>
               <th className="px-4 py-3 font-medium">Status</th>
@@ -99,7 +96,14 @@ export default async function EventosPage({
               >
                 <td className="px-4 py-3 font-medium">{event.title}</td>
                 <td className="px-4 py-3">{event.category}</td>
-                <td className="px-4 py-3">{formatDate(event.date)}</td>
+                <td className="px-4 py-3">
+                  {formatEventPeriodLabel({
+                    endsAt: event.ends_at,
+                    endTime: event.end_time,
+                    startsAt: event.starts_at,
+                    startTime: event.start_time,
+                  })}
+                </td>
                 <td className="px-4 py-3 text-muted">{event.createdBy.name}</td>
                 <td className="px-4 py-3">{event._count.participants}</td>
                 <td className="px-4 py-3">

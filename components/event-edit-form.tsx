@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useTransition } from "react";
+import { useActionState, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import {
@@ -9,6 +9,7 @@ import {
   updateEventAction,
   type ActionResult,
 } from "@/lib/events-actions";
+import { parseBrazilDateTime } from "@/lib/event-period";
 import { useActionToast } from "@/lib/use-action-toast";
 
 type EventEditFormProps = {
@@ -16,15 +17,16 @@ type EventEditFormProps = {
   event: {
     cancellation_reason: string | null;
     category: string;
-    date: string;
     description: string | null;
-    end_time: string | null;
+    end_date: string;
+    end_time: string;
     id: string;
     included: string[];
     is_deleted: boolean;
     participant_limit: number | null;
     requirements: string[];
-    start_time: string | null;
+    start_date: string;
+    start_time: string;
     title: string;
   };
 };
@@ -38,13 +40,55 @@ export function EventEditForm({ categories, event }: EventEditFormProps) {
     initial,
   );
   const [restorePending, startRestore] = useTransition();
+  const [startDate, setStartDate] = useState(event.start_date);
+  const [endDate, setEndDate] = useState(event.end_date);
+  const [clientError, setClientError] = useState<string | null>(null);
 
   useActionToast(state);
   useActionToast(cancelState);
 
+  function handleStartDateChange(value: string) {
+    setStartDate(value);
+    setEndDate((current) => {
+      if (!current || current === startDate) {
+        return value;
+      }
+      return current;
+    });
+  }
+
+  function handleSubmit(formData: FormData) {
+    setClientError(null);
+
+    const start = String(formData.get("start_date") ?? "").trim();
+    const end = String(formData.get("end_date") ?? "").trim();
+    const startTime = String(formData.get("start_time") ?? "").trim();
+    const endTime = String(formData.get("end_time") ?? "").trim();
+
+    if (!startTime || !endTime) {
+      setClientError("Horário de início e término são obrigatórios");
+      return;
+    }
+
+    const startsAt = parseBrazilDateTime(start, startTime);
+    const endsAt = parseBrazilDateTime(end, endTime);
+
+    if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime())) {
+      setClientError("Datas ou horários inválidos");
+      return;
+    }
+
+    if (endsAt.getTime() <= startsAt.getTime()) {
+      setClientError("O término deve ser posterior ao início");
+      return;
+    }
+
+    return formAction(formData);
+  }
+
   return (
     <div className="space-y-6">
-      <form action={formAction} className="panel-card space-y-4 p-5 sm:p-6">
+      <form action={handleSubmit} className="panel-card space-y-4 p-5 sm:p-6">
         <input name="eventId" type="hidden" value={event.id} />
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -77,14 +121,31 @@ export function EventEditForm({ categories, event }: EventEditFormProps) {
             </select>
           </label>
 
+          <div className="hidden sm:block" />
+
           <label className="block space-y-1.5">
-            <span className="text-sm font-medium">Data</span>
+            <span className="text-sm font-medium">Data de início</span>
             <input
               className="field-input"
-              defaultValue={event.date}
-              name="date"
+              name="start_date"
+              onChange={(eventInput) =>
+                handleStartDateChange(eventInput.target.value)
+              }
               required
               type="date"
+              value={startDate}
+            />
+          </label>
+
+          <label className="block space-y-1.5">
+            <span className="text-sm font-medium">Data de término</span>
+            <input
+              className="field-input"
+              name="end_date"
+              onChange={(eventInput) => setEndDate(eventInput.target.value)}
+              required
+              type="date"
+              value={endDate}
             />
           </label>
 
@@ -92,8 +153,9 @@ export function EventEditForm({ categories, event }: EventEditFormProps) {
             <span className="text-sm font-medium">Início</span>
             <input
               className="field-input"
-              defaultValue={event.start_time ?? ""}
+              defaultValue={event.start_time}
               name="start_time"
+              required
               type="time"
             />
           </label>
@@ -102,8 +164,9 @@ export function EventEditForm({ categories, event }: EventEditFormProps) {
             <span className="text-sm font-medium">Fim</span>
             <input
               className="field-input"
-              defaultValue={event.end_time ?? ""}
+              defaultValue={event.end_time}
               name="end_time"
+              required
               type="time"
             />
           </label>
@@ -149,6 +212,10 @@ export function EventEditForm({ categories, event }: EventEditFormProps) {
             />
           </label>
         </div>
+
+        {clientError || state.error ? (
+          <p className="text-sm text-danger">{clientError ?? state.error}</p>
+        ) : null}
 
         <button className="btn-primary" disabled={pending} type="submit">
           {pending ? "Salvando..." : "Salvar alterações"}
