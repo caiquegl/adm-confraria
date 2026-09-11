@@ -12,6 +12,7 @@ import { parseBrazilDateTime } from "@/lib/event-period";
 import { useActionToast } from "@/lib/use-action-toast";
 
 const initial: ActionResult = {};
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 type EventCreateFormProps = {
   categories: { id: string; name: string }[];
@@ -61,6 +62,19 @@ export function EventCreateForm({ categories }: EventCreateFormProps) {
 
     if (endsAt.getTime() <= startsAt.getTime()) {
       setClientError("O término deve ser posterior ao início");
+      return;
+    }
+
+    let uploadBytes = 0;
+    const cover = formData.get("cover");
+    if (cover instanceof File) uploadBytes += cover.size;
+    for (const file of formData.getAll("gallery")) {
+      if (file instanceof File) uploadBytes += file.size;
+    }
+    if (uploadBytes > MAX_UPLOAD_BYTES) {
+      setClientError(
+        "Imagens muito grandes no total (máx. ~4 MB). Reduza a qualidade ou envie menos fotos.",
+      );
       return;
     }
 

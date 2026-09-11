@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 
 import { admLog } from "@/lib/adm-log";
@@ -206,137 +206,190 @@ export async function restoreEventAction(eventId: string): Promise<ActionResult>
   return { at: Date.now(), success: "Evento restaurado." };
 }
 
+/** Keep under Vercel request body + Next serverActions.bodySizeLimit (4.5mb). */
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
+const MAX_SINGLE_FILE_BYTES = 5 * 1024 * 1024;
+
+async function appendUploadFile(
+  body: FormData,
+  field: string,
+  file: File,
+): Promise<string | null> {
+  if (file.size <= 0) return null;
+  if (file.size > MAX_SINGLE_FILE_BYTES) {
+    return `Arquivo "${file.name}" excede 5 MB`;
+  }
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  body.append(
+    field,
+    new Blob([bytes], { type: file.type || "application/octet-stream" }),
+    file.name || field,
+  );
+  return null;
+}
+
 export async function createEventViaApiAction(
   _prev: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const session = await requireSession();
-
-  const title = String(formData.get("title") ?? "").trim();
-  const category = String(formData.get("category") ?? "").trim();
-  const startDate = String(formData.get("startDate") ?? "").trim();
-  const endDate = String(formData.get("endDate") ?? "").trim();
-  const description = String(formData.get("description") ?? "").trim();
-  const startTime = String(formData.get("startTime") ?? "").trim();
-  const endTime = String(formData.get("endTime") ?? "").trim();
-  const hasParticipantLimit = formData.get("hasParticipantLimit") === "on";
-  const maxParticipantsRaw = String(formData.get("maxParticipants") ?? "");
-  const included = parseLines(String(formData.get("included") ?? ""));
-  const requirements = parseLines(String(formData.get("requirements") ?? ""));
-  const locationRaw = String(formData.get("locationJson") ?? "");
-
-  if (!title || !category || !startDate || !endDate) {
-    return {
-      at: Date.now(),
-      error: "Título, categoria, data de início e data de término são obrigatórios",
-    };
-  }
-
-  const period = resolveFormPeriod(startDate, endDate, startTime, endTime);
-  if ("error" in period) {
-    return { at: Date.now(), error: period.error };
-  }
-
-  let location: EventPlaceReference;
   try {
-    location = normalizePlaceReference(JSON.parse(locationRaw));
-  } catch {
-    return {
-      at: Date.now(),
-      error: "Selecione um ponto de encontro válido",
+    const session = await requireSession();
+
+    const title = String(formData.get("title") ?? "").trim();
+    const category = String(formData.get("category") ?? "").trim();
+    const startDate = String(formData.get("startDate") ?? "").trim();
+    const endDate = String(formData.get("endDate") ?? "").trim();
+    const description = String(formData.get("description") ?? "").trim();
+    const startTime = String(formData.get("startTime") ?? "").trim();
+    const endTime = String(formData.get("endTime") ?? "").trim();
+    const hasParticipantLimit = formData.get("hasParticipantLimit") === "on";
+    const maxParticipantsRaw = String(formData.get("maxParticipants") ?? "");
+    const included = parseLines(String(formData.get("included") ?? ""));
+    const requirements = parseLines(String(formData.get("requirements") ?? ""));
+    const locationRaw = String(formData.get("locationJson") ?? "");
+
+    if (!title || !category || !startDate || !endDate) {
+      return {
+        at: Date.now(),
+        error:
+          "Título, categoria, data de início e data de término são obrigatórios",
+      };
+    }
+
+    const period = resolveFormPeriod(startDate, endDate, startTime, endTime);
+    if ("error" in period) {
+      return { at: Date.now(), error: period.error };
+    }
+
+    let location: EventPlaceReference;
+    try {
+      location = normalizePlaceReference(JSON.parse(locationRaw));
+    } catch {
+      return {
+        at: Date.now(),
+        error: "Selecione um ponto de encontro válido",
+      };
+    }
+
+    let destination: EventPlaceReference | null = null;
+    const destinationRaw = String(formData.get("destinationJson") ?? "").trim();
+    if (destinationRaw) {
+      try {
+        destination = normalizePlaceReference(JSON.parse(destinationRaw));
+      } catch {
+        return { at: Date.now(), error: "Destino inválido" };
+      }
+    }
+
+    let stops: EventPlaceReference[] = [];
+    const stopsRaw = String(formData.get("stopsJson") ?? "").trim();
+    if (stopsRaw) {
+      try {
+        const parsedStops = JSON.parse(stopsRaw) as unknown;
+        if (!Array.isArray(parsedStops)) {
+          throw new Error("stops inválido");
+        }
+        stops = parsedStops.map((stop) => normalizePlaceReference(stop));
+      } catch {
+        return { at: Date.now(), error: "Paradas inválidas" };
+      }
+    }
+
+    // HTML date inputs are YYYY-MM-DD; Nest expects Brazilian DD/MM/YYYY
+    const brazilianStartDate = isoDateToBrazilian(startDate);
+    const brazilianEndDate = isoDateToBrazilian(endDate);
+
+    const payload = {
+      category,
+      date: brazilianStartDate,
+      description: description || null,
+      destination,
+      endDate: brazilianEndDate,
+      endTime: period.endTime,
+      hasParticipantLimit,
+      included,
+      location,
+      maxParticipants: hasParticipantLimit
+        ? Number(maxParticipantsRaw) || null
+        : null,
+      requirements,
+      startDate: brazilianStartDate,
+      startTime: period.startTime,
+      stops,
+      title,
     };
-  }
 
-  let destination: EventPlaceReference | null = null;
-  const destinationRaw = String(formData.get("destinationJson") ?? "").trim();
-  if (destinationRaw) {
-    try {
-      destination = normalizePlaceReference(JSON.parse(destinationRaw));
-    } catch {
-      return { at: Date.now(), error: "Destino inválido" };
-    }
-  }
+    const body = new FormData();
+    body.append("payload", JSON.stringify(payload));
 
-  let stops: EventPlaceReference[] = [];
-  const stopsRaw = String(formData.get("stopsJson") ?? "").trim();
-  if (stopsRaw) {
-    try {
-      const parsedStops = JSON.parse(stopsRaw) as unknown;
-      if (!Array.isArray(parsedStops)) {
-        throw new Error("stops inválido");
+    let uploadBytes = 0;
+    const cover = formData.get("cover");
+    if (cover instanceof File && cover.size > 0) {
+      uploadBytes += cover.size;
+      const coverError = await appendUploadFile(body, "cover", cover);
+      if (coverError) {
+        return { at: Date.now(), error: coverError };
       }
-      stops = parsedStops.map((stop) => normalizePlaceReference(stop));
-    } catch {
-      return { at: Date.now(), error: "Paradas inválidas" };
     }
-  }
 
-  // HTML date inputs are YYYY-MM-DD; Nest expects Brazilian DD/MM/YYYY
-  const brazilianStartDate = isoDateToBrazilian(startDate);
-  const brazilianEndDate = isoDateToBrazilian(endDate);
-
-  const payload = {
-    category,
-    date: brazilianStartDate,
-    description: description || null,
-    destination,
-    endDate: brazilianEndDate,
-    endTime: period.endTime,
-    hasParticipantLimit,
-    included,
-    location,
-    maxParticipants: hasParticipantLimit
-      ? Number(maxParticipantsRaw) || null
-      : null,
-    requirements,
-    startDate: brazilianStartDate,
-    startTime: period.startTime,
-    stops,
-    title,
-  };
-
-  const body = new FormData();
-  body.append("payload", JSON.stringify(payload));
-
-  const cover = formData.get("cover");
-  if (cover instanceof File && cover.size > 0) {
-    body.append("cover", cover);
-  }
-
-  const gallery = formData.getAll("gallery");
-  for (const file of gallery) {
-    if (file instanceof File && file.size > 0) {
-      body.append("gallery", file);
-    }
-  }
-
-  const response = await nestFetch("/events", session.apiToken, {
-    body,
-    method: "POST",
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    let message = "Falha ao criar evento na API";
-    try {
-      const json = JSON.parse(text) as { message?: string | string[] };
-      if (typeof json.message === "string") {
-        message = json.message;
-      } else if (Array.isArray(json.message)) {
-        message = json.message.join(", ");
+    const gallery = formData.getAll("gallery");
+    for (const file of gallery) {
+      if (!(file instanceof File) || file.size <= 0) continue;
+      uploadBytes += file.size;
+      const galleryError = await appendUploadFile(body, "gallery", file);
+      if (galleryError) {
+        return { at: Date.now(), error: galleryError };
       }
-    } catch {
-      // keep default
     }
-    admLog.warn("event create failed", {
-      path: "/events",
-      status: response.status,
+
+    if (uploadBytes > MAX_UPLOAD_BYTES) {
+      return {
+        at: Date.now(),
+        error:
+          "Imagens muito grandes no total (máx. ~4 MB). Reduza a qualidade ou envie menos fotos.",
+      };
+    }
+
+    const response = await nestFetch("/events", session.apiToken, {
+      body,
+      method: "POST",
     });
+
+    if (!response.ok) {
+      const text = await response.text();
+      let message = "Falha ao criar evento na API";
+      try {
+        const json = JSON.parse(text) as { message?: string | string[] };
+        if (typeof json.message === "string") {
+          message = json.message;
+        } else if (Array.isArray(json.message)) {
+          message = json.message.join(", ");
+        }
+      } catch {
+        // keep default
+      }
+      admLog.warn("event create failed", {
+        path: "/events",
+        status: response.status,
+      });
+      return { at: Date.now(), error: message };
+    }
+
+    const created = (await response.json()) as { id: string };
+    admLog.info("event created", { eventId: created.id });
+    revalidatePath("/eventos");
+    redirect(`/eventos/${created.id}`);
+  } catch (error) {
+    unstable_rethrow(error);
+    const message =
+      error instanceof Error && error.message === "UNAUTHORIZED"
+        ? "Sessão expirada. Entre novamente."
+        : error instanceof Error
+          ? error.message
+          : "Falha inesperada ao criar evento";
+    console.error("[adm] event create crashed", error);
+    admLog.error("event create crashed", { message });
     return { at: Date.now(), error: message };
   }
-
-  const created = (await response.json()) as { id: string };
-  admLog.info("event created", { eventId: created.id });
-  revalidatePath("/eventos");
-  redirect(`/eventos/${created.id}`);
 }
