@@ -7,6 +7,7 @@ export default async function NovoEventoPage() {
   const categories = await prisma.eventCategory.findMany({
     orderBy: { name: "asc" },
     select: { id: true, name: true },
+    where: { is_active: true },
   });
 
   return (

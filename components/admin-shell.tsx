@@ -94,9 +94,31 @@ function VersionsIcon({ className }: { className?: string }) {
   );
 }
 
+function CategoriesIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden
+      className={className}
+      fill="none"
+      height="18"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.8"
+      viewBox="0 0 24 24"
+      width="18"
+    >
+      <path d="M12 2 2 7l10 5 10-5-10-5Z" />
+      <path d="m2 17 10 5 10-5" />
+      <path d="m2 12 10 5 10-5" />
+    </svg>
+  );
+}
+
 const links = [
   { href: "/usuarios", label: "Usuários", Icon: UsersIcon },
   { href: "/eventos", label: "Eventos", Icon: EventsIcon },
+  { href: "/categorias", label: "Categorias", Icon: CategoriesIcon },
   { href: "/versoes", label: "Versões", Icon: VersionsIcon },
 ];
 

@@ -24,7 +24,7 @@ export default async function EventoDetailPage({
 }) {
   const { id } = await params;
 
-  const [event, categories] = await Promise.all([
+  const [event, activeCategories] = await Promise.all([
     prisma.event.findUnique({
       include: {
         createdBy: { select: { email: true, name: true } },
@@ -47,12 +47,17 @@ export default async function EventoDetailPage({
     prisma.eventCategory.findMany({
       orderBy: { name: "asc" },
       select: { id: true, name: true },
+      where: { is_active: true },
     }),
   ]);
 
   if (!event) {
     notFound();
   }
+
+  const categories = activeCategories.some((item) => item.name === event.category)
+    ? activeCategories
+    : [{ id: `legacy-${event.category}`, name: event.category }, ...activeCategories];
 
   const period = resolveEventFormPeriod({
     date: event.date,
