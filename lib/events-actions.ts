@@ -155,10 +155,102 @@ export async function updateEventAction(
     where: { id: data.eventId },
   });
 
+  const mediaResult = await updateEventMediaViaApi(data.eventId, formData);
+  if (mediaResult.error) {
+    return { at: Date.now(), error: mediaResult.error };
+  }
+
   admLog.info("event updated", { eventId: data.eventId });
   revalidatePath("/eventos");
   revalidatePath(`/eventos/${data.eventId}`);
   return { at: Date.now(), success: "Evento atualizado." };
+}
+
+async function updateEventMediaViaApi(
+  eventId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  const session = await requireSession();
+
+  const coverImageUri = String(formData.get("coverImageUri") ?? "").trim();
+  let galleryUris: string[] = [];
+  const galleryUrisRaw = String(formData.get("galleryUris") ?? "").trim();
+  if (galleryUrisRaw) {
+    try {
+      const parsed = JSON.parse(galleryUrisRaw) as unknown;
+      if (!Array.isArray(parsed)) {
+        return { error: "Lista de fotos da galeria inválida" };
+      }
+      galleryUris = parsed.filter(
+        (item): item is string => typeof item === "string" && item.trim().length > 0,
+      );
+    } catch {
+      return { error: "Lista de fotos da galeria inválida" };
+    }
+  }
+
+  const body = new FormData();
+  body.append(
+    "payload",
+    JSON.stringify({
+      coverImageUri: coverImageUri || null,
+      galleryUris,
+    }),
+  );
+
+  let uploadBytes = 0;
+  const cover = formData.get("cover");
+  if (cover instanceof File && cover.size > 0) {
+    uploadBytes += cover.size;
+    const coverError = await appendUploadFile(body, "cover", cover);
+    if (coverError) {
+      return { error: coverError };
+    }
+  }
+
+  const gallery = formData.getAll("gallery");
+  for (const file of gallery) {
+    if (!(file instanceof File) || file.size <= 0) continue;
+    uploadBytes += file.size;
+    const galleryError = await appendUploadFile(body, "gallery", file);
+    if (galleryError) {
+      return { error: galleryError };
+    }
+  }
+
+  if (uploadBytes > MAX_UPLOAD_BYTES) {
+    return {
+      error:
+        "Imagens muito grandes no total (máx. ~4 MB). Reduza a qualidade ou envie menos fotos.",
+    };
+  }
+
+  const response = await nestFetch(`/events/${eventId}/media`, session.apiToken, {
+    body,
+    method: "PATCH",
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    let message = "Falha ao atualizar imagens do evento";
+    try {
+      const json = JSON.parse(text) as { message?: string | string[] };
+      if (typeof json.message === "string") {
+        message = json.message;
+      } else if (Array.isArray(json.message)) {
+        message = json.message.join(", ");
+      }
+    } catch {
+      // keep default
+    }
+    admLog.warn("event media update failed", {
+      eventId,
+      status: response.status,
+    });
+    return { error: message };
+  }
+
+  return {};
 }
 
 export async function cancelEventAction(

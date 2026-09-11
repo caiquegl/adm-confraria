@@ -102,28 +102,21 @@ export default async function EventoDetailPage({
         </div>
       ) : null}
 
-      {event.images.length > 0 ? (
-        <div className="flex flex-wrap gap-3">
-          {event.images.map((image) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              alt={image.kind}
-              className="h-24 w-24 rounded-lg object-cover"
-              key={image.url}
-              src={image.url}
-            />
-          ))}
-        </div>
-      ) : null}
-
       <EventEditForm
         categories={categories}
         event={{
           cancellation_reason: event.cancellation_reason,
           category: event.category,
+          coverUrl:
+            event.images.find((image) => image.kind === "cover")?.url ??
+            event.images[0]?.url ??
+            null,
           description: event.description,
           end_date: period.endDate,
           end_time: period.endTime,
+          galleryUrls: event.images
+            .filter((image) => image.kind === "gallery")
+            .map((image) => image.url),
           id: event.id,
           included: jsonToStringArray(event.included),
           is_deleted: event.is_deleted,

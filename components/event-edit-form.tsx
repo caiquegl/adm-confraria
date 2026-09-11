@@ -3,6 +3,7 @@
 import { useActionState, useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import { EventImageFields } from "@/components/event-image-fields";
 import {
   cancelEventAction,
   restoreEventAction,
@@ -17,9 +18,11 @@ type EventEditFormProps = {
   event: {
     cancellation_reason: string | null;
     category: string;
+    coverUrl: string | null;
     description: string | null;
     end_date: string;
     end_time: string;
+    galleryUrls: string[];
     id: string;
     included: string[];
     is_deleted: boolean;
@@ -217,6 +220,17 @@ export function EventEditForm({ categories, event }: EventEditFormProps) {
               rows={3}
             />
           </label>
+        </div>
+
+        <div className="space-y-2 border-t border-border pt-4">
+          <p className="text-sm font-semibold text-brand-dark">Fotos</p>
+          <p className="text-xs text-muted">
+            Visualize, remova ou adicione capa e galeria (até 10 fotos).
+          </p>
+          <EventImageFields
+            initialCoverUrl={event.coverUrl}
+            initialGalleryUrls={event.galleryUrls}
+          />
         </div>
 
         {clientError || state.error ? (

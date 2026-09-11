@@ -8,16 +8,29 @@ import {
   type DragEvent,
 } from "react";
 
-type PreviewItem = {
+type PreviewFileItem = {
   file: File;
   id: string;
+  kind: "new";
   url: string;
 };
 
-const MAX_GALLERY = 10;
+type ExistingImageItem = {
+  id: string;
+  kind: "existing";
+  url: string;
+};
 
-function revokeAll(items: PreviewItem[]) {
-  items.forEach((item) => URL.revokeObjectURL(item.url));
+type CoverItem = ExistingImageItem | PreviewFileItem | null;
+type GalleryItem = ExistingImageItem | PreviewFileItem;
+
+const MAX_GALLERY = 10;
+const LOCAL_GALLERY_PREFIX = "local-gallery:";
+
+function revokeAll(items: GalleryItem[]) {
+  items.forEach((item) => {
+    if (item.kind === "new") URL.revokeObjectURL(item.url);
+  });
 }
 
 function syncInput(input: HTMLInputElement | null, files: File[]) {
@@ -37,10 +50,11 @@ function isImageFile(file: File) {
   return file.type.startsWith("image/") || /\.(jpe?g|png|webp|gif|heic)$/i.test(file.name);
 }
 
-function toPreviewItems(files: File[]): PreviewItem[] {
+function toPreviewItems(files: File[]): PreviewFileItem[] {
   return files.filter(isImageFile).map((file) => ({
     file,
     id: crypto.randomUUID(),
+    kind: "new" as const,
     url: URL.createObjectURL(file),
   }));
 }
@@ -90,29 +104,67 @@ function DropzoneShell({
   );
 }
 
-export function EventImageFields() {
+type EventImageFieldsProps = {
+  initialCoverUrl?: string | null;
+  initialGalleryUrls?: string[];
+};
+
+export function EventImageFields({
+  initialCoverUrl = null,
+  initialGalleryUrls = [],
+}: EventImageFieldsProps = {}) {
   const coverPickerRef = useRef<HTMLInputElement>(null);
   const galleryPickerRef = useRef<HTMLInputElement>(null);
   const coverSubmitRef = useRef<HTMLInputElement>(null);
   const gallerySubmitRef = useRef<HTMLInputElement>(null);
+  const coverUriRef = useRef<HTMLInputElement>(null);
+  const galleryUrisRef = useRef<HTMLInputElement>(null);
 
-  const [cover, setCover] = useState<PreviewItem | null>(null);
-  const [gallery, setGallery] = useState<PreviewItem[]>([]);
-
-  useEffect(() => {
-    syncInput(coverSubmitRef.current, cover ? [cover.file] : []);
-  }, [cover]);
+  const [cover, setCover] = useState<CoverItem>(() =>
+    initialCoverUrl
+      ? { id: "cover-existing", kind: "existing", url: initialCoverUrl }
+      : null,
+  );
+  const [gallery, setGallery] = useState<GalleryItem[]>(() =>
+    initialGalleryUrls.map((url, index) => ({
+      id: `gallery-existing-${index}`,
+      kind: "existing" as const,
+      url,
+    })),
+  );
 
   useEffect(() => {
     syncInput(
-      gallerySubmitRef.current,
-      gallery.map((item) => item.file),
+      coverSubmitRef.current,
+      cover?.kind === "new" ? [cover.file] : [],
     );
+    if (coverUriRef.current) {
+      coverUriRef.current.value =
+        cover?.kind === "existing" ? cover.url : cover?.kind === "new" ? "" : "";
+    }
+  }, [cover]);
+
+  useEffect(() => {
+    const newFiles = gallery
+      .filter((item): item is PreviewFileItem => item.kind === "new")
+      .map((item) => item.file);
+    syncInput(gallerySubmitRef.current, newFiles);
+
+    if (galleryUrisRef.current) {
+      let newIndex = 0;
+      const uris = gallery.map((item) => {
+        if (item.kind === "existing") return item.url;
+        const marker = `${LOCAL_GALLERY_PREFIX}${newIndex}`;
+        newIndex += 1;
+        return marker;
+      });
+      galleryUrisRef.current.value = JSON.stringify(uris);
+    }
   }, [gallery]);
 
   useEffect(() => {
     return () => {
-      if (cover) URL.revokeObjectURL(cover.url);
+      if (cover?.kind === "new") URL.revokeObjectURL(cover.url);
       revokeAll(gallery);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -120,13 +172,21 @@ export function EventImageFields() {
 
   const setCoverFile = useCallback((file: File | null) => {
     setCover((current) => {
-      if (current) URL.revokeObjectURL(current.url);
+      if (current?.kind === "new") URL.revokeObjectURL(current.url);
       if (!file || !isImageFile(file)) return null;
       return {
         file,
         id: crypto.randomUUID(),
+        kind: "new",
         url: URL.createObjectURL(file),
       };
+    });
+  }, []);
+
+  const clearCover = useCallback(() => {
+    setCover((current) => {
+      if (current?.kind === "new") URL.revokeObjectURL(current.url);
+      return null;
     });
   }, []);
 
@@ -142,7 +202,7 @@ export function EventImageFields() {
   function removeGalleryItem(id: string) {
     setGallery((current) => {
       const target = current.find((item) => item.id === id);
-      if (target) URL.revokeObjectURL(target.url);
+      if (target?.kind === "new") URL.revokeObjectURL(target.url);
       return current.filter((item) => item.id !== id);
     });
   }
@@ -166,13 +226,24 @@ export function EventImageFields() {
         ref={coverSubmitRef}
         type="file"
       />
+      <input
+        defaultValue={initialCoverUrl ?? ""}
+        name="coverImageUri"
+        ref={coverUriRef}
+        type="hidden"
+      />
+      <input
+        defaultValue={JSON.stringify(initialGalleryUrls)}
+        name="galleryUris"
+        ref={galleryUrisRef}
+        type="hidden"
+      />
 
       <input
         accept="image/*"
         className="sr-only"
         multiple
         onChange={(event) => {
-          // FileList é live: copiar ANTES de limpar o input
           const files = event.target.files
             ? Array.from(event.target.files)
             : [];
@@ -207,7 +278,7 @@ export function EventImageFields() {
               </button>
               <button
                 className="rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-semibold text-danger"
-                onClick={() => setCoverFile(null)}
+                onClick={clearCover}
                 type="button"
               >
                 Remover
@@ -226,8 +297,14 @@ export function EventImageFields() {
             />
             <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3">
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{cover.file.name}</p>
-                <p className="text-xs text-muted">{formatBytes(cover.file.size)}</p>
+                <p className="truncate text-sm font-medium">
+                  {cover.kind === "new" ? cover.file.name : "Capa atual"}
+                </p>
+                <p className="text-xs text-muted">
+                  {cover.kind === "new"
+                    ? formatBytes(cover.file.size)
+                    : "Já publicada"}
+                </p>
               </div>
               <span className="rounded-full bg-brand-green px-2.5 py-1 text-[11px] font-bold text-brand-dark">
                 Capa
@@ -280,20 +357,22 @@ export function EventImageFields() {
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                alt={item.file.name}
+                alt={item.kind === "new" ? item.file.name : "Foto da galeria"}
                 className="aspect-square w-full object-cover"
                 src={item.url}
               />
               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-brand-dark/80 to-transparent p-2 pt-8">
                 <p className="truncate text-[11px] font-medium text-white">
-                  {item.file.name}
+                  {item.kind === "new" ? item.file.name : "Foto atual"}
                 </p>
                 <p className="text-[10px] text-white/70">
-                  {formatBytes(item.file.size)}
+                  {item.kind === "new"
+                    ? formatBytes(item.file.size)
+                    : "Já publicada"}
                 </p>
               </div>
               <button
-                aria-label={`Remover ${item.file.name}`}
+                aria-label="Remover foto"
                 className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-white/95 text-sm font-bold text-danger shadow-sm transition group-hover:scale-105"
                 onClick={() => removeGalleryItem(item.id)}
                 type="button"
