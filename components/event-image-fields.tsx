@@ -292,7 +292,7 @@ export function EventImageFields({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               alt="Capa do evento"
-              className="aspect-[16/10] w-full object-cover"
+              className="aspect-[4/3] w-full object-cover"
               src={cover.url}
             />
             <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3">
@@ -324,7 +324,7 @@ export function EventImageFields({
               Arraste a capa aqui
             </p>
             <p className="mt-1 text-xs text-muted">
-              ou clique para selecionar · JPG, PNG ou WEBP
+              ou clique para selecionar · Proporção recomendada 4:3 (ex: 1600 × 1200) · JPG, PNG ou WEBP
             </p>
           </DropzoneShell>
         )}
